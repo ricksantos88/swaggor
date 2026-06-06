@@ -62,7 +62,7 @@ func main() {
 	serverMux.Handle("/swagger-go/", engine.Handler())
 
 	log.Println("[INFO] Operating application lifecycle metrics engine on: http://localhost:8080/api/v3/customers")
-	log.Println("[INFO] Interactive OpenAPI graphical visualization route: http://localhost:8080/swagger-go/")
+	log.Println("[INFO] Swagger UI: http://localhost:8080/swagger-go/")
 
 	if err := http.ListenAndServe(":8080", serverMux); err != nil {
 		log.Fatalf("[CRITICAL] Infrastructure binding failure event intercepted: %v", err)

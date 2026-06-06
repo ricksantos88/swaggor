@@ -1,10 +1,10 @@
 # swaggergo
 
-Lightweight OpenAPI 3.0 documentation middleware for Go. Zero external dependencies for the core — works with any `net/http`-compatible router and adapts to frameworks like Fiber via their `net/http` adaptor.
+Lightweight Swagger documentation middleware for Go. Zero external dependencies for the core — works with any `net/http`-compatible router and adapts to frameworks like Fiber via their `net/http` adaptor.
 
 ## Features
 
-- Generates an OpenAPI 3.0.3 spec from Go structs via reflection
+- Generates a Swagger spec from Go structs via reflection
 - Serves Swagger UI at `/swagger-go/` and the raw JSON spec at `/swagger-go/doc.json`
 - Thread-safe spec building with `sync.RWMutex`
 - Struct field descriptions via `description` struct tags
@@ -99,20 +99,20 @@ Returns an `http.Handler` that serves:
 | Path | Content |
 |---|---|
 | `GET /swagger-go/` | Swagger UI HTML |
-| `GET /swagger-go/doc.json` | OpenAPI 3.0.3 JSON spec |
+| `GET /swagger-go/doc.json` | JSON spec |
 
 ## Struct Tags
 
 | Tag | Purpose |
 |---|---|
 | `json:"name"` | Sets the field name in the schema (falls back to field name) |
-| `description:"..."` | Sets the `description` field in the OpenAPI property |
+| `description:"..."` | Sets the description of the property |
 
 Fields tagged with `json:"-"` or unexported fields are ignored.
 
 ## Go Type Mapping
 
-| Go type | OpenAPI type |
+| Go type | Swagger type |
 |---|---|
 | `string` | `string` |
 | `int`, `int64`, … | `integer` |

@@ -9,7 +9,7 @@ import (
 	"sync"
 )
 
-// Property defines the metadata structure for an OpenAPI schema property.
+// Property defines the metadata structure for a Swagger schema property.
 type Property struct {
 	Type        string              `json:"type"`
 	Format      string              `json:"format,omitempty"`
@@ -17,7 +17,7 @@ type Property struct {
 	Properties  map[string]Property `json:"properties,omitempty"`
 }
 
-// Schema represents an object structure definition within the OpenAPI spec.
+// Schema represents an object structure definition within the Swagger spec.
 type Schema struct {
 	Type       string              `json:"type"`
 	Properties map[string]Property `json:"properties"`
@@ -63,9 +63,9 @@ type Components struct {
 	Schemas map[string]Schema `json:"schemas"`
 }
 
-// OpenAPIv3 holds the absolute state of the system documentation compliant with OpenAPI 3.0.3.
-type OpenAPIv3 struct {
-	OpenAPI    string              `json:"openapi"`
+// SwaggerSpec holds the full state of the documentation spec.
+type SwaggerSpec struct {
+	Version    string              `json:"openapi"`
 	Info       Info                `json:"info"`
 	Paths      map[string]PathItem `json:"paths"`
 	Components Components          `json:"components"`
@@ -74,14 +74,14 @@ type OpenAPIv3 struct {
 // Engine controls safe operations over specification mapping states.
 type Engine struct {
 	mu   sync.RWMutex
-	spec OpenAPIv3
+	spec SwaggerSpec
 }
 
 // NewEngine safely initializes an instance of the documentation middleware.
 func NewEngine(title, version string) *Engine {
 	return &Engine{
-		spec: OpenAPIv3{
-			OpenAPI: "3.0.3",
+		spec: SwaggerSpec{
+			Version: "3.0.3",
 			Info: Info{
 				Title:   title,
 				Version: version,
@@ -95,7 +95,7 @@ func NewEngine(title, version string) *Engine {
 }
 
 // RegisterModel parses struct definitions through reflection into the global components dictionary.
-func (e *Engine) RegisterModel(model interface{}) string {
+func (e *Engine) RegisterModel(model any) string {
 	if model == nil {
 		return ""
 	}
@@ -104,7 +104,7 @@ func (e *Engine) RegisterModel(model interface{}) string {
 	defer e.mu.Unlock()
 
 	t := reflect.TypeOf(model)
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -136,7 +136,7 @@ func (e *Engine) RegisterModel(model interface{}) string {
 		}
 
 		schema.Properties[fieldName] = Property{
-			Type:        e.mapGoTypeToOpenAPI(field.Type),
+			Type:        e.mapGoType(field.Type),
 			Description: field.Tag.Get("description"),
 		}
 	}
@@ -146,7 +146,7 @@ func (e *Engine) RegisterModel(model interface{}) string {
 }
 
 // AddRoute safely binds operational metadata to a target structural path routing key.
-func (e *Engine) AddRoute(path, method, summary, description string, responseModel interface{}) {
+func (e *Engine) AddRoute(path, method, summary, description string, responseModel any) {
 	refPath := e.RegisterModel(responseModel)
 
 	e.mu.Lock()
@@ -188,8 +188,8 @@ func (e *Engine) AddRoute(path, method, summary, description string, responseMod
 	e.spec.Paths[path] = pathItem
 }
 
-func (e *Engine) mapGoTypeToOpenAPI(t reflect.Type) string {
-	for t.Kind() == reflect.Ptr {
+func (e *Engine) mapGoType(t reflect.Type) string {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 

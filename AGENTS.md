@@ -4,7 +4,7 @@ Guidelines for AI agents (Claude Code, Copilot, etc.) working in this repository
 
 ## Project overview
 
-`swaggergo` is a minimal OpenAPI 3.0.3 documentation middleware for Go. It has two source files:
+`swaggergo` is a minimal Swagger documentation middleware for Go. It has two source files:
 
 - [swagger.go](swagger.go) — core engine: spec types, reflection-based model registration, route binding, `net/http` handler
 - [ui.go](ui.go) — generates the Swagger UI HTML page (CDN-backed, no embedded assets)
@@ -41,16 +41,12 @@ Tests should use the standard `testing` package — no test framework. Test file
 - `Handler` — HTTP responses for `/swagger-go/` and `/swagger-go/doc.json`
 - Concurrency — call `AddRoute` from multiple goroutines to validate mutex safety
 
-## Spec compliance
-
-The generated spec targets **OpenAPI 3.0.3**. Do not drift toward 3.1 without a deliberate decision, as Swagger UI 5.x handles both but tools differ.
-
 ## Endpoints served
 
 | Path | Handler |
 |---|---|
 | `GET /swagger-go/` | HTML — Swagger UI via CDN |
-| `GET /swagger-go/doc.json` | JSON — OpenAPI spec |
+| `GET /swagger-go/doc.json` | JSON — Swagger spec |
 
 Any path under `/swagger-go/` that is not exactly `/swagger-go` returns 404.
 
