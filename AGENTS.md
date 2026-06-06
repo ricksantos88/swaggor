@@ -1,15 +1,15 @@
-# AGENTS.md — swaggergo
+# AGENTS.md — swaggor
 
 Guidelines for AI agents (Claude Code, Copilot, etc.) working in this repository.
 
 ## Project overview
 
-`swaggergo` is a minimal Swagger documentation middleware for Go. It has two source files:
+`swaggor` is a minimal Swagger documentation middleware for Go. It has two source files:
 
 - [swagger.go](swagger.go) — core engine: spec types, reflection-based model registration, route binding, `net/http` handler
 - [ui.go](ui.go) — generates the Swagger UI HTML page (CDN-backed, no embedded assets)
 
-There are no generated files, no build scripts, and no test files yet. The module path is `github.com/ricksantos88/swaggergo`.
+There are no generated files, no build scripts, and no test files yet. The module path is `github.com/ricksantos88/swaggor`.
 
 ## Scope rules
 
@@ -34,27 +34,27 @@ Currently only `GET` and `POST` are supported in `AddRoute`. To add more methods
 
 ## Adding tests
 
-Tests should use the standard `testing` package — no test framework. Test files go in the root package (`package swaggergo`). The main things worth testing:
+Tests should use the standard `testing` package — no test framework. Test files go in the root package (`package swaggor`). The main things worth testing:
 
 - `RegisterModel` — correct schema generation from struct reflection
 - `AddRoute` — correct `PathItem` and `Operation` population
-- `Handler` — HTTP responses for `/swagger-go/` and `/swagger-go/doc.json`
+- `Handler` — HTTP responses for `/swaggor/` and `/swaggor/doc.json`
 - Concurrency — call `AddRoute` from multiple goroutines to validate mutex safety
 
 ## Endpoints served
 
 | Path | Handler |
 |---|---|
-| `GET /swagger-go/` | HTML — Swagger UI via CDN |
-| `GET /swagger-go/doc.json` | JSON — Swagger spec |
+| `GET /swaggor/` | HTML — Swagger UI via CDN |
+| `GET /swaggor/doc.json` | JSON — Swagger spec |
 
-Any path under `/swagger-go/` that is not exactly `/swagger-go` returns 404.
+Any path under `/swaggor/` that is not exactly `/swaggor` returns 404.
 
 ## Running examples
 
 ```bash
-go run ./example/nethttp   # http://localhost:8080/swagger-go/
-go run ./example/fiber     # http://localhost:3000/swagger-go/
+go run ./example/nethttp   # http://localhost:8080/swaggor/
+go run ./example/fiber     # http://localhost:3000/swaggor/
 ```
 
 ## What agents should NOT do
@@ -62,4 +62,4 @@ go run ./example/fiber     # http://localhost:3000/swagger-go/
 - Do not refactor the reflection logic in `RegisterModel` without running the examples end-to-end.
 - Do not replace the CDN Swagger UI with embedded assets unless the user explicitly asks — it would add binary weight to the module.
 - Do not add logging to the core package.
-- Do not change the mount prefix `/swagger-go` without updating both the handler and the examples.
+- Do not change the mount prefix `/swaggor` without updating both the handler and the examples.

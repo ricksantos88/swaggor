@@ -1,11 +1,11 @@
-# swaggergo
+# swaggor
 
 Lightweight Swagger documentation middleware for Go. Zero external dependencies for the core — works with any `net/http`-compatible router and adapts to frameworks like Fiber via their `net/http` adaptor.
 
 ## Features
 
 - Generates a Swagger spec from Go structs via reflection
-- Serves Swagger UI at `/swagger-go/` and the raw JSON spec at `/swagger-go/doc.json`
+- Serves Swagger UI at `/swaggor/` and the raw JSON spec at `/swaggor/doc.json`
 - Thread-safe spec building with `sync.RWMutex`
 - Struct field descriptions via `description` struct tags
 - Compatible with any `net/http` mux and frameworks that support `http.Handler` adapters (e.g. Fiber)
@@ -13,7 +13,7 @@ Lightweight Swagger documentation middleware for Go. Zero external dependencies 
 ## Installation
 
 ```bash
-go get github.com/ricksantos88/swaggergo
+go get github.com/ricksantos88/swaggor
 ```
 
 ## Quick Start
@@ -25,7 +25,7 @@ package main
 
 import (
     "net/http"
-    "github.com/ricksantos88/swaggergo"
+    "github.com/ricksantos88/swaggor"
 )
 
 type UserResponse struct {
@@ -34,19 +34,19 @@ type UserResponse struct {
 }
 
 func main() {
-    engine := swaggergo.NewEngine("My API", "v1.0.0")
+    engine := swaggor.NewEngine("My API", "v1.0.0")
 
     engine.AddRoute("/api/users", http.MethodGet, "List Users", "Returns all users.", UserResponse{})
 
     mux := http.NewServeMux()
-    mux.Handle("/swagger-go/", engine.Handler())
+    mux.Handle("/swaggor/", engine.Handler())
 
     http.ListenAndServe(":8080", mux)
 }
 ```
 
-Swagger UI → `http://localhost:8080/swagger-go/`  
-Raw spec   → `http://localhost:8080/swagger-go/doc.json`
+Swagger UI → `http://localhost:8080/swaggor/`  
+Raw spec   → `http://localhost:8080/swaggor/doc.json`
 
 ### Fiber
 
@@ -57,7 +57,7 @@ import (
     "net/http"
     "github.com/gofiber/fiber/v2"
     "github.com/gofiber/fiber/v2/middleware/adaptor"
-    "github.com/ricksantos88/swaggergo"
+    "github.com/ricksantos88/swaggor"
 )
 
 type UserResponse struct {
@@ -66,17 +66,17 @@ type UserResponse struct {
 }
 
 func main() {
-    engine := swaggergo.NewEngine("My Fiber API", "v1.0.0")
+    engine := swaggor.NewEngine("My Fiber API", "v1.0.0")
     engine.AddRoute("/api/users", http.MethodGet, "List Users", "Returns all users.", UserResponse{})
 
     app := fiber.New()
-    app.All("/swagger-go/*", adaptor.HTTPHandler(engine.Handler()))
+    app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
 
     app.Listen(":3000")
 }
 ```
 
-Swagger UI → `http://localhost:3000/swagger-go/`
+Swagger UI → `http://localhost:3000/swaggor/`
 
 ## API
 
@@ -98,8 +98,8 @@ Returns an `http.Handler` that serves:
 
 | Path | Content |
 |---|---|
-| `GET /swagger-go/` | Swagger UI HTML |
-| `GET /swagger-go/doc.json` | JSON spec |
+| `GET /swaggor/` | Swagger UI HTML |
+| `GET /swaggor/doc.json` | JSON spec |
 
 ## Struct Tags
 

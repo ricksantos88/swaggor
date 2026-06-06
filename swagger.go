@@ -1,4 +1,4 @@
-package swaggergo
+package swaggor
 
 import (
 	"encoding/json"
@@ -216,7 +216,7 @@ func (e *Engine) mapGoType(t reflect.Type) string {
 func (e *Engine) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/swagger-go/doc.json", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/swaggor/doc.json", func(w http.ResponseWriter, r *http.Request) {
 		e.mu.RLock()
 		defer e.mu.RUnlock()
 
@@ -224,14 +224,14 @@ func (e *Engine) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(e.spec)
 	})
 
-	mux.HandleFunc("/swagger-go/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/swaggor/", func(w http.ResponseWriter, r *http.Request) {
 		cleanPath := strings.TrimSuffix(r.URL.Path, "/")
-		if cleanPath != "/swagger-go" {
+		if cleanPath != "/swaggor" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(DefaultSwaggerUIHTML("/swagger-go/doc.json")))
+		_, _ = w.Write([]byte(DefaultSwaggerUIHTML("/swaggor/doc.json")))
 	})
 
 	return mux

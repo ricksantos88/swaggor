@@ -1,4 +1,4 @@
-package swaggergo
+package swaggor
 
 import (
 	"fmt"

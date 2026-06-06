@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ricksantos88/swaggergo" // Imports the local module
+	"github.com/ricksantos88/swaggor" // Imports the local module
 )
 
 // AccountSettings maps administrative options for customer profiles.
@@ -24,7 +24,7 @@ type CustomerResponse struct {
 
 func main() {
 	// 1. Initialize Engine metadata definitions
-	engine := swaggergo.NewEngine("Financial Customer Core API", "v3.1.2")
+	engine := swaggor.NewEngine("Financial Customer Core API", "v3.1.2")
 
 	// 2. Bind endpoints and expected runtime payloads cleanly
 	engine.AddRoute(
@@ -59,10 +59,10 @@ func main() {
 	})
 
 	// 5. Mount documentation interface directly under the specified default mount path
-	serverMux.Handle("/swagger-go/", engine.Handler())
+	serverMux.Handle("/swaggor/", engine.Handler())
 
 	log.Println("[INFO] Operating application lifecycle metrics engine on: http://localhost:8080/api/v3/customers")
-	log.Println("[INFO] Swagger UI: http://localhost:8080/swagger-go/")
+	log.Println("[INFO] Swagger UI: http://localhost:8080/swaggor/")
 
 	if err := http.ListenAndServe(":8080", serverMux); err != nil {
 		log.Fatalf("[CRITICAL] Infrastructure binding failure event intercepted: %v", err)

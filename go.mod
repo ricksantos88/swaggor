@@ -1,4 +1,4 @@
-module github.com/ricksantos88/swaggergo
+module github.com/ricksantos88/swaggor
 
 go 1.25.0
 

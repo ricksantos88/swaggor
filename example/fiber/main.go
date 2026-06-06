@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
-	"github.com/ricksantos88/swaggergo"
+	"github.com/ricksantos88/swaggor"
 )
 
 // AccountSettings maps administrative options for customer profiles.
@@ -24,8 +24,8 @@ type CustomerResponse struct {
 }
 
 func main() {
-	// 1. Initialize our SwaggerGo Engine
-	engine := swaggergo.NewEngine("Fiber High-Performance API", "v4.0.0")
+	// 1. Initialize our Swaggor Engine
+	engine := swaggor.NewEngine("Fiber High-Performance API", "v4.0.0")
 
 	// 2. Register the endpoint metadata dynamically
 	engine.AddRoute(
@@ -58,12 +58,12 @@ func main() {
 	})
 
 	// 5. The Magic: Adapt the net/http Handler into a Fiber Handler
-	// We use app.All and a wildcard route "/swagger-go/*" so the internal router
+	// We use app.All and a wildcard route "/swaggor/*" so the internal router
 	// of our library can handle both "/" (HTML) and "/doc.json" (JSON).
-	app.All("/swagger-go/*", adaptor.HTTPHandler(engine.Handler()))
+	app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
 
 	log.Println("[INFO] Fiber Application active at: http://localhost:3000/api/v4/customers")
-	log.Println("[INFO] Swagger UI Documentation at: http://localhost:3000/swagger-go/")
+	log.Println("[INFO] Swagger UI Documentation at: http://localhost:3000/swaggor/")
 
 	// 6. Start the fasthttp server
 	if err := app.Listen(":3000"); err != nil {
