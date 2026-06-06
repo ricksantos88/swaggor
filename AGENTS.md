@@ -1,0 +1,69 @@
+# AGENTS.md — swaggergo
+
+Guidelines for AI agents (Claude Code, Copilot, etc.) working in this repository.
+
+## Project overview
+
+`swaggergo` is a minimal OpenAPI 3.0.3 documentation middleware for Go. It has two source files:
+
+- [swagger.go](swagger.go) — core engine: spec types, reflection-based model registration, route binding, `net/http` handler
+- [ui.go](ui.go) — generates the Swagger UI HTML page (CDN-backed, no embedded assets)
+
+There are no generated files, no build scripts, and no test files yet. The module path is `github.com/ricksantos88/swaggergo`.
+
+## Scope rules
+
+**Only touch** `swagger.go` and `ui.go` for core changes. Examples live under `example/` and exist solely to demonstrate usage — do not alter them unless the API surface changes.
+
+**Do not** add dependencies to `go.mod` for the core package. The core must remain dependency-free (only stdlib). Fiber is a dev/example dependency only.
+
+## Code style
+
+- No unnecessary comments. Existing godoc comments on exported symbols are intentional — keep them.
+- No error wrapping or recovery for internal logic; only validate at the HTTP boundary.
+- Struct tags drive the public API surface (`json`, `description`) — do not change tag semantics without updating the README.
+- The `Engine` type is the single entry point — do not expose internal types or helpers.
+
+## Adding HTTP methods
+
+Currently only `GET` and `POST` are supported in `AddRoute`. To add more methods:
+
+1. Add the corresponding field to `PathItem` in [swagger.go](swagger.go).
+2. Add the `case` to the `switch` inside `AddRoute`.
+3. Update the README method support table.
+
+## Adding tests
+
+Tests should use the standard `testing` package — no test framework. Test files go in the root package (`package swaggergo`). The main things worth testing:
+
+- `RegisterModel` — correct schema generation from struct reflection
+- `AddRoute` — correct `PathItem` and `Operation` population
+- `Handler` — HTTP responses for `/swagger-go/` and `/swagger-go/doc.json`
+- Concurrency — call `AddRoute` from multiple goroutines to validate mutex safety
+
+## Spec compliance
+
+The generated spec targets **OpenAPI 3.0.3**. Do not drift toward 3.1 without a deliberate decision, as Swagger UI 5.x handles both but tools differ.
+
+## Endpoints served
+
+| Path | Handler |
+|---|---|
+| `GET /swagger-go/` | HTML — Swagger UI via CDN |
+| `GET /swagger-go/doc.json` | JSON — OpenAPI spec |
+
+Any path under `/swagger-go/` that is not exactly `/swagger-go` returns 404.
+
+## Running examples
+
+```bash
+go run ./example/nethttp   # http://localhost:8080/swagger-go/
+go run ./example/fiber     # http://localhost:3000/swagger-go/
+```
+
+## What agents should NOT do
+
+- Do not refactor the reflection logic in `RegisterModel` without running the examples end-to-end.
+- Do not replace the CDN Swagger UI with embedded assets unless the user explicitly asks — it would add binary weight to the module.
+- Do not add logging to the core package.
+- Do not change the mount prefix `/swagger-go` without updating both the handler and the examples.
