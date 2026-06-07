@@ -4,8 +4,10 @@ Lightweight OpenAPI 3.0 documentation middleware for Go. Zero external dependenc
 
 ## Features
 
+- **Declarative annotation system** — document routes directly in handler doc-comments; no separate registration blocks
 - Generates an OpenAPI 3.0 spec from Go structs via reflection
 - Serves Swagger UI at `/swaggor/` and the raw JSON spec at `/swaggor/doc.json`
+- Generic, framework-agnostic adapter (`adapters.Load`) — works with `net/http`, Fiber, or any router
 - Thread-safe spec building with `sync.RWMutex`
 - Supports all HTTP methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS
 - Request body and multi-status response documentation
@@ -19,7 +21,6 @@ Lightweight OpenAPI 3.0 documentation middleware for Go. Zero external dependenc
 - Self-referential type support
 - Servers block (multi-environment URLs)
 - Info block: description, contact, license, terms of service
-- Compatible with any `net/http` mux and frameworks that support `http.Handler` adapters (e.g. Fiber)
 
 ## Installation
 
@@ -27,96 +28,108 @@ Lightweight OpenAPI 3.0 documentation middleware for Go. Zero external dependenc
 go get github.com/ricksantos88/swaggor
 ```
 
-## Quick Start
+## Quick Start — Declarative (recommended)
 
-### net/http
+Document routes directly in your handler doc-comments using `@` annotations. The `parser` sub-package reads those comments at startup and wires everything automatically via the generic `adapters.Load` function.
+
+### 1. Annotate your handlers
+
+```go
+// package handlers
+
+// ListUsers returns paginated user records.
+//
+// @Route    GET /api/users
+// @Summary  List Users
+// @Desc     Returns paginated user records.
+// @Tags     users
+// @Query    page  "Page number (1-based)"   optional
+// @Query    limit "Results per page (max 100)" optional
+// @Response 200 UserResponse  "Successful"
+// @Response 401 ErrorResponse "Unauthorized"
+// @Auth     bearer
+// @Cache    60s
+// @For      nethttp
+func ListUsers(w http.ResponseWriter, r *http.Request) { ... }
+```
+
+**Annotation reference:**
+
+| Tag | Format | Description |
+|---|---|---|
+| `@Route` | `METHOD /path` | HTTP method + path (required) |
+| `@Summary` | `text` | Short operation title |
+| `@Desc` | `text` | Longer description |
+| `@Tags` | `tag1,tag2` | Grouping tags |
+| `@Query` | `name "desc" required\|optional` | Query-string parameter |
+| `@Path` | `name "desc"` | Path parameter (always required) |
+| `@Body` | `"desc" required\|optional` | Request body |
+| `@Response` | `code TypeName "desc"` | Possible response (repeat for multiple) |
+| `@Auth` | `schemeName` | Security scheme to apply |
+| `@Cache` | `duration` | Suggested cache TTL (informational) |
+| `@For` | `nethttp\|fiber` | Target framework (default: `nethttp`) |
+
+### 2. Build a registry
+
+Map function-name strings to actual function references so the adapter can wire them without reflection on function values:
+
+```go
+// handlers/registry.go
+var Registry = map[string]http.HandlerFunc{
+    "ListUsers":   ListUsers,
+    "GetUser":     GetUser,
+    "CreateUser":  CreateUser,
+}
+```
+
+### 3. Wire everything at startup
 
 ```go
 package main
 
 import (
     "net/http"
+    "log"
+
     "github.com/ricksantos88/swaggor"
+    "github.com/ricksantos88/swaggor/adapters"
+    "github.com/ricksantos88/swaggor/parser"
+    "mymodule/handlers"
 )
-
-type UserResponse struct {
-    ID     int    `json:"id"     description:"Unique identifier"`
-    Name   string `json:"name"   description:"Display name"`
-    Status string `json:"status" description:"Account status" enum:"active,inactive" example:"active"`
-}
-
-type CreateUserRequest struct {
-    Name  string `json:"name"  description:"Display name"`
-    Email string `json:"email" description:"Email address" format:"email"`
-}
-
-type ErrorResponse struct {
-    Code    int    `json:"code"    description:"Error code"`
-    Message string `json:"message" description:"Error message"`
-}
 
 func main() {
     engine := swaggor.NewEngine("My API", "v1.0.0",
-        swaggor.WithDescription("User management API."),
-        swaggor.WithContact("Team", "team@example.com", "https://example.com"),
-        swaggor.WithLicense("MIT", "https://opensource.org/licenses/MIT"),
         swaggor.WithServer("http://localhost:8080", "Local"),
         swaggor.WithSecurityScheme("bearer", swaggor.BearerJWT()),
     )
 
-    engine.AddRoute("/api/users", "GET", "List Users", "Returns all users",
-        swaggor.WithTags("Users"),
-        swaggor.WithQueryParam("page", "Page number", false),
-        swaggor.WithQueryParam("limit", "Results per page", false),
-        swaggor.WithResponse(200, "OK", []UserResponse{}),
-        swaggor.WithResponse(401, "Unauthorized", ErrorResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
-
-    engine.AddRoute("/api/users/{id}", "GET", "Get User", "Returns one user",
-        swaggor.WithTags("Users"),
-        swaggor.WithPathParam("id", "User ID"),
-        swaggor.WithResponse(200, "OK", UserResponse{}),
-        swaggor.WithResponse(404, "Not Found", ErrorResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
-
-    engine.AddRoute("/api/users", "POST", "Create User", "Creates a new user",
-        swaggor.WithTags("Users"),
-        swaggor.WithRequestBody("User data", true, CreateUserRequest{}),
-        swaggor.WithResponse(201, "Created", UserResponse{}),
-        swaggor.WithResponse(400, "Validation Error", ErrorResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
-
-    engine.AddRoute("/api/users/{id}", "PUT", "Replace User", "Full update",
-        swaggor.WithTags("Users"),
-        swaggor.WithPathParam("id", "User ID"),
-        swaggor.WithRequestBody("Replacement data", true, CreateUserRequest{}),
-        swaggor.WithResponse(200, "OK", UserResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
-
-    engine.AddRoute("/api/users/{id}", "PATCH", "Update User", "Partial update",
-        swaggor.WithTags("Users"),
-        swaggor.WithPathParam("id", "User ID"),
-        swaggor.WithRequestBody("Partial data", false, CreateUserRequest{}),
-        swaggor.WithResponse(200, "OK", UserResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
-
-    engine.AddRoute("/api/users/{id}", "DELETE", "Delete User", "Removes a user",
-        swaggor.WithTags("Users"),
-        swaggor.WithPathParam("id", "User ID"),
-        swaggor.WithResponse(204, "Deleted", nil),
-        swaggor.WithResponse(404, "Not Found", ErrorResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
+    routes, err := parser.ParseDir("./handlers")
+    if err != nil {
+        log.Fatal(err)
+    }
 
     mux := http.NewServeMux()
-    mux.Handle("/swaggor/", engine.Handler())
 
-    http.ListenAndServe(":8080", mux)
+    adapters.Load(engine, routes, handlers.Registry, responseResolver,
+        func(method, path string, h http.HandlerFunc) {
+            mux.HandleFunc(method+" "+path, h)
+        },
+    )
+
+    mux.Handle("/swaggor/", engine.Handler())
+    log.Fatal(http.ListenAndServe(":8080", mux))
+}
+
+func responseResolver(typeName string) any {
+    switch typeName {
+    case "UserResponse":
+        return handlers.UserResponse{}
+    case "[]UserResponse":
+        return []handlers.UserResponse{}
+    case "ErrorResponse":
+        return handlers.ErrorResponse{}
+    }
+    return nil
 }
 ```
 
@@ -125,36 +138,54 @@ Raw spec   → `http://localhost:8080/swaggor/doc.json`
 
 ### Fiber
 
-```go
-package main
+The same pattern works with Fiber — only the registry type and the register callback change:
 
-import (
-    "net/http"
-    "github.com/gofiber/fiber/v2"
-    "github.com/gofiber/fiber/v2/middleware/adaptor"
-    "github.com/ricksantos88/swaggor"
+```go
+var FiberRegistry = map[string]fiber.Handler{
+    "ListUsersFiber":   ListUsersFiber,
+    "CreateUsersFiber": CreateUsersFiber,
+}
+
+adapters.Load(engine, routes, handlers.FiberRegistry, responseResolver,
+    func(method, path string, h fiber.Handler) {
+        app.Add(method, path, h)
+    },
 )
 
-func main() {
-    engine := swaggor.NewEngine("My Fiber API", "v1.0.0",
-        swaggor.WithServer("http://localhost:3000", "Local"),
-        swaggor.WithSecurityScheme("bearer", swaggor.BearerJWT()),
-    )
-
-    engine.AddRoute("/api/users", http.MethodGet, "List Users", "Returns all users",
-        swaggor.WithTags("Users"),
-        swaggor.WithResponse(200, "OK", []UserResponse{}),
-        swaggor.WithSecurity("bearer"),
-    )
-
-    app := fiber.New()
-    app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
-
-    app.Listen(":3000")
-}
+// Mount Swagger UI (Fiber uses fasthttp internally)
+app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
 ```
 
-Swagger UI → `http://localhost:3000/swaggor/`
+See [example/nethttp/main.go](example/nethttp/main.go) and [example/fiber/main.go](example/fiber/main.go) for full runnable examples.
+
+---
+
+## Programmatic API (lower-level)
+
+If you prefer to register routes in code instead of doc-comments, you can call `engine.AddRoute` directly — no `parser` or `adapters` packages needed.
+
+```go
+engine.AddRoute("/api/users", "GET", "List Users", "Returns all users",
+    swaggor.WithTags("Users"),
+    swaggor.WithQueryParam("page", "Page number", false),
+    swaggor.WithResponse(200, "OK", []UserResponse{}),
+    swaggor.WithResponse(401, "Unauthorized", ErrorResponse{}),
+    swaggor.WithSecurity("bearer"),
+)
+
+engine.AddRoute("/api/users/{id}", "POST", "Create User", "Creates a user",
+    swaggor.WithTags("Users"),
+    swaggor.WithRequestBody("User data", true, CreateUserRequest{}),
+    swaggor.WithResponse(201, "Created", UserResponse{}),
+    swaggor.WithSecurity("bearer"),
+)
+
+mux := http.NewServeMux()
+mux.Handle("/swaggor/", engine.Handler())
+http.ListenAndServe(":8080", mux)
+```
+
+---
 
 ## API Reference
 
@@ -189,9 +220,27 @@ Registers an API endpoint. Supported methods: `GET`, `POST`, `PUT`, `PATCH`, `DE
 | `WithResponse(statusCode, description, model)` | Document a response (call multiple times for multiple status codes) |
 | `WithSecurity(schemeNames...)` | Apply security scheme requirements to the operation |
 
-### `engine.RegisterModel(model interface{}) string`
+### `parser.ParseDir(dir string) ([]RouteAnnotation, error)`
 
-Manually registers a struct in `components/schemas`. Returns the `$ref` path. Called automatically by `AddRoute` when models are provided.
+Scans all `.go` files in `dir`, extracts `@` annotations from doc-comments, and returns a slice of `RouteAnnotation` structs ready for `adapters.Load`.
+
+### `adapters.Load[H any](...)`
+
+Generic, framework-agnostic loader:
+
+```go
+func Load[H any](
+    engine    *swaggor.Engine,
+    routes    []parser.RouteAnnotation,
+    registry  map[string]H,
+    resolver  BodyResolver,
+    register  RegisterFunc[H],
+)
+```
+
+- `registry` — map from function-name string to the actual handler value
+- `resolver` — `func(typeName string) any` that returns a zero-value of each response/body type
+- `register` — `func(method, path string, handler H)` that wires the handler into your router
 
 ### `engine.Handler() http.Handler`
 
@@ -238,9 +287,7 @@ Fields tagged with `json:"-"` or unexported fields are ignored.
 | `struct` | `object` / `$ref` | — |
 | `time.Time` | `string` | `date-time` |
 
-## Examples
-
-See [example/nethttp/main.go](example/nethttp/main.go) and [example/fiber/main.go](example/fiber/main.go) for full runnable examples.
+## Running the examples
 
 ```bash
 # net/http example
