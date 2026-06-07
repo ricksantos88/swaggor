@@ -147,14 +147,13 @@ func main() {
 		return c.SendStatus(http.StatusNoContent)
 	})
 
-	// Adapt the net/http handler into Fiber using the wildcard route.
+	// fiber usa fasthttp internamente, então net/http handlers precisam do adaptor
 	app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
 
-	log.Println("[INFO] API:        http://localhost:3000/api/v4/customers")
-	log.Println("[INFO] Swagger UI: http://localhost:3000/swaggor/")
-	log.Println("[INFO] Spec JSON:  http://localhost:3000/swaggor/doc.json")
+	log.Println("API:        http://localhost:3000/api/v4/customers")
+	log.Println("Swagger UI: http://localhost:3000/swaggor/")
 
 	if err := app.Listen(":3000"); err != nil {
-		log.Fatalf("[CRITICAL] Fiber server failed: %v", err)
+		log.Fatalf("fiber: %v", err)
 	}
 }

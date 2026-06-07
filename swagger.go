@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-// ── Info ──────────────────────────────────────────────────────────────────────
-
 // Contact holds API contact information.
 type Contact struct {
 	Name  string `json:"name,omitempty"`
@@ -34,8 +32,6 @@ type Info struct {
 	Contact        *Contact `json:"contact,omitempty"`
 	License        *License `json:"license,omitempty"`
 }
-
-// ── Server ────────────────────────────────────────────────────────────────────
 
 // Server describes a target host for the API.
 type Server struct {
@@ -63,8 +59,6 @@ type Schema struct {
 	Properties map[string]Property `json:"properties"`
 }
 
-// ── Parameter ─────────────────────────────────────────────────────────────────
-
 // Parameter describes a single operation parameter (path, query, header, cookie).
 type Parameter struct {
 	Name        string   `json:"name"`
@@ -74,16 +68,12 @@ type Parameter struct {
 	Schema      Property `json:"schema"`
 }
 
-// ── Request Body ──────────────────────────────────────────────────────────────
-
 // RequestBody describes the payload expected in the request.
 type RequestBody struct {
 	Description string               `json:"description,omitempty"`
 	Required    bool                 `json:"required"`
 	Content     map[string]MediaType `json:"content"`
 }
-
-// ── Response ──────────────────────────────────────────────────────────────────
 
 // MediaType wraps a schema for a specific content type.
 type MediaType struct {
@@ -96,8 +86,6 @@ type Response struct {
 	Content     map[string]MediaType `json:"content,omitempty"`
 }
 
-// ── Operation ─────────────────────────────────────────────────────────────────
-
 // Operation documents a single HTTP method on a path.
 type Operation struct {
 	Tags        []string              `json:"tags,omitempty"`
@@ -109,8 +97,6 @@ type Operation struct {
 	Security    []map[string][]string `json:"security,omitempty"`
 }
 
-// ── Path Item ─────────────────────────────────────────────────────────────────
-
 // PathItem defines all HTTP methods available on a specific path.
 type PathItem struct {
 	Get     *Operation `json:"get,omitempty"`
@@ -121,8 +107,6 @@ type PathItem struct {
 	Head    *Operation `json:"head,omitempty"`
 	Options *Operation `json:"options,omitempty"`
 }
-
-// ── Security ──────────────────────────────────────────────────────────────────
 
 // SecurityScheme defines a security mechanism available in the API.
 type SecurityScheme struct {
@@ -151,15 +135,11 @@ type OAuthFlow struct {
 	Scopes           map[string]string `json:"scopes"`
 }
 
-// ── Components ────────────────────────────────────────────────────────────────
-
 // Components aggregates reusable schemas and security schemes.
 type Components struct {
 	Schemas         map[string]Schema        `json:"schemas"`
 	SecuritySchemes map[string]SecurityScheme `json:"securitySchemes,omitempty"`
 }
-
-// ── Spec ──────────────────────────────────────────────────────────────────────
 
 // SwaggerSpec is the root OpenAPI 3.0 document.
 type SwaggerSpec struct {
@@ -170,15 +150,11 @@ type SwaggerSpec struct {
 	Components Components          `json:"components"`
 }
 
-// ── Engine ────────────────────────────────────────────────────────────────────
-
 // Engine manages the OpenAPI spec state and serves the documentation.
 type Engine struct {
 	mu   sync.RWMutex
 	spec SwaggerSpec
 }
-
-// ── Engine Options ────────────────────────────────────────────────────────────
 
 // EngineOption configures an Engine at construction time.
 type EngineOption func(*Engine)
@@ -221,8 +197,6 @@ func WithSecurityScheme(name string, scheme SecurityScheme) EngineOption {
 	}
 }
 
-// ── Security Scheme Helpers ───────────────────────────────────────────────────
-
 // BearerJWT returns a pre-configured HTTP Bearer + JWT security scheme.
 func BearerJWT() SecurityScheme {
 	return SecurityScheme{Type: "http", Scheme: "bearer", BearerFormat: "JWT"}
@@ -264,7 +238,7 @@ func NewEngine(title, version string, opts ...EngineOption) *Engine {
 
 // ── Route Options ─────────────────────────────────────────────────────────────
 
-// RouteOption configures a single route registration.
+// RouteOption configures a route registration.
 type RouteOption func(*routeConfig)
 
 type routeConfig struct {
@@ -353,6 +327,7 @@ func WithResponse(statusCode int, description string, model any) RouteOption {
 // WithSecurity applies one or more named security scheme requirements to the operation.
 func WithSecurity(schemeNames ...string) RouteOption {
 	return func(c *routeConfig) {
+		// cada schemeNames vira uma entrada separada — AND semântico no OpenAPI
 		entry := make(map[string][]string, len(schemeNames))
 		for _, name := range schemeNames {
 			entry[name] = []string{}
@@ -432,7 +407,8 @@ func (e *Engine) AddRoute(path, method, summary, description string, opts ...Rou
 }
 
 // RegisterModel parses a struct via reflection and registers it in components/schemas.
-// Returns the $ref path. Accepts structs, pointers to structs, and slices of structs.
+// Retorna o $ref path. Aceita structs, ponteiros e slices.
+// TODO: suportar anyOf/oneOf quando tiver tempo
 func (e *Engine) RegisterModel(model any) string {
 	if model == nil {
 		return ""
@@ -455,8 +431,8 @@ func (e *Engine) RegisterModel(model any) string {
 	return e.registerStructLocked(t)
 }
 
-// registerStructLocked adds a struct schema to components/schemas.
-// Assumes e.mu write lock is held. Safe against self-referential types.
+// registerStructLocked adiciona um schema em components/schemas.
+// Assumes write lock is held.
 func (e *Engine) registerStructLocked(t reflect.Type) string {
 	name := t.Name()
 	if name == "" {
@@ -467,7 +443,7 @@ func (e *Engine) registerStructLocked(t reflect.Type) string {
 		return ref
 	}
 
-	// Placeholder prevents infinite recursion on self-referential types.
+	// placeholder pra quebrar ciclo em tipos auto-referenciados (ex: Node { Children []Node })
 	e.spec.Components.Schemas[name] = Schema{Type: "object", Properties: make(map[string]Property)}
 
 	schema := Schema{Type: "object", Properties: make(map[string]Property)}
@@ -490,8 +466,7 @@ func (e *Engine) registerStructLocked(t reflect.Type) string {
 	return ref
 }
 
-// buildFieldPropertyLocked builds a Property for a struct field, applying struct tags.
-// Assumes write lock is held.
+// buildFieldPropertyLocked lê as tags do campo e sobrescreve o que buildPropertyLocked inferiu.
 func (e *Engine) buildFieldPropertyLocked(field reflect.StructField) Property {
 	prop := e.buildPropertyLocked(field.Type)
 	if v := field.Tag.Get("description"); v != "" {
@@ -509,8 +484,8 @@ func (e *Engine) buildFieldPropertyLocked(field reflect.StructField) Property {
 	return prop
 }
 
-// buildPropertyLocked derives a Property for any reflect.Type.
-// Assumes write lock is held. Recursively registers nested structs.
+// buildPropertyLocked mapeia qualquer reflect.Type pro seu Property OpenAPI.
+// Registra structs aninhados recursivamente — lock já deve estar held pelo caller.
 func (e *Engine) buildPropertyLocked(t reflect.Type) Property {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -542,15 +517,15 @@ func (e *Engine) mapKindToType(k reflect.Kind) string {
 	switch k {
 	case reflect.String:
 		return "string"
+	case reflect.Bool:
+		return "boolean"
+	case reflect.Float32, reflect.Float64:
+		return "number"
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return "integer"
-	case reflect.Float32, reflect.Float64:
-		return "number"
-	case reflect.Bool:
-		return "boolean"
 	default:
-		return "string"
+		return "string" // maps, channels, etc. — não deveria chegar aqui
 	}
 }
 
@@ -569,10 +544,10 @@ func (e *Engine) mapKindToFormat(t reflect.Type) string {
 	}
 }
 
-// Handler returns an http.Handler serving the Swagger UI and raw JSON spec.
+// Handler retorna um http.Handler que serve a UI e o spec JSON.
 //
-//	GET /swaggor/       → Swagger UI (HTML)
-//	GET /swaggor/doc.json → OpenAPI 3.0 spec (JSON)
+//	GET /swaggor/         → Swagger UI (HTML)
+//	GET /swaggor/doc.json → OpenAPI 3.0 spec
 func (e *Engine) Handler() http.Handler {
 	mux := http.NewServeMux()
 

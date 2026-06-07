@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// DefaultSwaggerUIHTML returns a fully configured single-page application index string for Swagger UI rendering.
+// DefaultSwaggerUIHTML retorna o HTML da UI apontando pro spec em specPath.
 func DefaultSwaggerUIHTML(specPath string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">

@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// ── test fixtures ─────────────────────────────────────────────────────────────
-
 type SimpleStruct struct {
 	ID   int    `json:"id"   description:"Unique identifier" example:"42"`
 	Name string `json:"name" description:"Display name"`
@@ -58,8 +56,6 @@ type IgnoredField struct {
 	Hidden string `json:"hidden,omitempty"`
 	Skip   string `json:"-"`
 }
-
-// ── NewEngine ─────────────────────────────────────────────────────────────────
 
 func TestNewEngine_Defaults(t *testing.T) {
 	e := NewEngine("Test API", "v1.0.0")
@@ -143,8 +139,6 @@ func TestNewEngine_WithSecurityScheme(t *testing.T) {
 	}
 }
 
-// ── Security scheme helpers ───────────────────────────────────────────────────
-
 func TestBearerJWT(t *testing.T) {
 	s := BearerJWT()
 	if s.Type != "http" || s.Scheme != "bearer" || s.BearerFormat != "JWT" {
@@ -172,8 +166,6 @@ func TestBasicAuth(t *testing.T) {
 		t.Errorf("unexpected: %+v", s)
 	}
 }
-
-// ── RegisterModel ─────────────────────────────────────────────────────────────
 
 func TestRegisterModel_Nil(t *testing.T) {
 	e := NewEngine("Test", "v1")
@@ -383,8 +375,6 @@ func TestRegisterModel_IgnoresUnexportedAndDashFields(t *testing.T) {
 		t.Error("'hidden,omitempty' field should be present with name 'hidden'")
 	}
 }
-
-// ── AddRoute ──────────────────────────────────────────────────────────────────
 
 func TestAddRoute_AllHTTPMethods(t *testing.T) {
 	methods := []struct {
@@ -612,7 +602,7 @@ func TestAddRoute_AutoRegistersResponseModel(t *testing.T) {
 	}
 }
 
-// ── Handler ───────────────────────────────────────────────────────────────────
+// ── Handler ──────────────────────────────────────────────────────────────────
 
 func TestHandler_DocJSON_StatusAndContentType(t *testing.T) {
 	e := NewEngine("Test", "v1")
@@ -672,11 +662,8 @@ func TestHandler_UIPage_WithoutTrailingSlash(t *testing.T) {
 	e := NewEngine("Test", "v1")
 	req := httptest.NewRequest(http.MethodGet, "/swaggor", nil)
 	rr := httptest.NewRecorder()
-	// Note: the mux pattern "/swaggor/" also matches "/swaggor" via redirect
-	// but our handler normalizes by trimming the trailing slash.
+	// ServeMux faz 301 antes do nosso handler ver; via adaptor (fiber etc) chega direto
 	e.Handler().ServeHTTP(rr, req)
-	// Behaviour: the mux will 301 redirect /swaggor → /swaggor/ before our handler sees it;
-	// but if accessed directly (e.g. via adaptor), the handler trims and serves.
 	if rr.Code != http.StatusMovedPermanently && rr.Code != http.StatusOK {
 		t.Errorf("want 200 or 301, got %d", rr.Code)
 	}
@@ -691,8 +678,6 @@ func TestHandler_UnknownPath_NotFound(t *testing.T) {
 		t.Errorf("want 404, got %d", rr.Code)
 	}
 }
-
-// ── Thread safety ─────────────────────────────────────────────────────────────
 
 func TestAddRoute_ConcurrentSafe(t *testing.T) {
 	e := NewEngine("Test", "v1")
@@ -752,8 +737,6 @@ func TestHandler_ConcurrentRead(t *testing.T) {
 	}
 	wg.Wait()
 }
-
-// ── Full spec round-trip ──────────────────────────────────────────────────────
 
 func TestFullSpec_RoundTrip(t *testing.T) {
 	e := NewEngine("Full API", "v2.0.0",
@@ -815,7 +798,7 @@ func TestFullSpec_RoundTrip(t *testing.T) {
 		WithSecurity("bearer"),
 	)
 
-	// Serialize and deserialize to verify JSON round-trip integrity.
+	// serializa e deserializa pra garantir que o JSON não quebra nada
 	req := httptest.NewRequest(http.MethodGet, "/swaggor/doc.json", nil)
 	rr := httptest.NewRecorder()
 	e.Handler().ServeHTTP(rr, req)
