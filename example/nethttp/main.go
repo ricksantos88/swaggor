@@ -25,7 +25,13 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	adapters.LoadNetHTTP(engine, mux, routes, handlers.NetHTTPRegistry, responseResolver)
+
+	adapters.Load(engine, routes, handlers.NetHTTPRegistry, responseResolver,
+		func(method, path string, h http.HandlerFunc) {
+			mux.HandleFunc(method+" "+path, h)
+		},
+	)
+
 	mux.Handle("/swaggor/", engine.Handler())
 
 	log.Println("API:        http://localhost:8080/api/v1/customers")
@@ -36,7 +42,6 @@ func main() {
 	}
 }
 
-// responseResolver maps @Response type names to zero-value instances for schema inference.
 func responseResolver(typeName string) any {
 	switch typeName {
 	case "CustomerResponse":

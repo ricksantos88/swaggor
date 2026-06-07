@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/ricksantos88/swaggor"
-	swaggoradapters "github.com/ricksantos88/swaggor/adapters"
+	"github.com/ricksantos88/swaggor/adapters"
 	"github.com/ricksantos88/swaggor/example/handlers"
 	"github.com/ricksantos88/swaggor/parser"
 )
@@ -27,7 +27,12 @@ func main() {
 	}
 
 	app := fiber.New(fiber.Config{AppName: "Fiber Swagger Integration"})
-	swaggoradapters.LoadFiber(engine, app, routes, handlers.FiberRegistry, responseResolver)
+
+	adapters.Load(engine, routes, handlers.FiberRegistry, responseResolver,
+		func(method, path string, h fiber.Handler) {
+			app.Add(method, path, h)
+		},
+	)
 
 	// Fiber uses fasthttp internally — net/http handlers need the adaptor middleware.
 	app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
@@ -40,7 +45,6 @@ func main() {
 	}
 }
 
-// responseResolver maps @Response type names to zero-value instances for schema inference.
 func responseResolver(typeName string) any {
 	switch typeName {
 	case "CustomerResponse":
