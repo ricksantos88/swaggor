@@ -115,11 +115,10 @@ func main() {
 
 	serverMux.Handle("/swaggor/", engine.Handler())
 
-	log.Println("[INFO] API:        http://localhost:8080/api/v3/customers")
-	log.Println("[INFO] Swagger UI: http://localhost:8080/swaggor/")
-	log.Println("[INFO] Spec JSON:  http://localhost:8080/swaggor/doc.json")
+	log.Println("API:        http://localhost:8080/api/v3/customers")
+	log.Println("Swagger UI: http://localhost:8080/swaggor/")
 
 	if err := http.ListenAndServe(":8080", serverMux); err != nil {
-		log.Fatalf("[CRITICAL] Server failed: %v", err)
+		log.Fatal(err)
 	}
 }
