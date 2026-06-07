@@ -9,64 +9,152 @@ import (
 	"github.com/ricksantos88/swaggor"
 )
 
-// AccountSettings maps administrative options for customer profiles.
 type AccountSettings struct {
 	TwoFactorEnabled bool   `json:"two_factor_enabled" description:"Enforces multi-factor authorization checkpoints"`
-	PreferredLang    string `json:"preferred_lang" description:"ISO standard language code preferred by account customer"`
+	PreferredLang    string `json:"preferred_lang"     description:"ISO language code preferred by the account holder" example:"en-US"`
 }
 
-// CustomerResponse represents the production enterprise representation layout.
 type CustomerResponse struct {
-	UUID     string          `json:"uuid" description:"Immutable unique global transaction trace domain key identity"`
-	Username string          `json:"username" description:"Alphanumeric user identification handle mapped globally"`
-	TierID   int             `json:"tier_id" description:"Subscription classification ranking system layer identification code"`
-	Settings AccountSettings `json:"settings" description:"Embedded user profile system configurations"`
+	UUID     string          `json:"uuid"     description:"Immutable globally unique identifier" format:"uuid"`
+	Username string          `json:"username" description:"Alphanumeric user handle" example:"wendel.santos.fiber"`
+	TierID   int32           `json:"tier_id"  description:"Subscription tier" example:"99"`
+	Status   string          `json:"status"   description:"Account status" enum:"active,inactive,suspended" example:"active"`
+	Settings AccountSettings `json:"settings" description:"Embedded profile configuration"`
+}
+
+type CreateCustomerRequest struct {
+	Username string `json:"username" description:"Desired username" example:"wendel.santos"`
+	Email    string `json:"email"    description:"Account email address" format:"email"`
+	TierID   int32  `json:"tier_id"  description:"Initial subscription tier"`
+}
+
+type ErrorResponse struct {
+	Code    int    `json:"code"    description:"Machine-readable error code"`
+	Message string `json:"message" description:"Human-readable error description"`
 }
 
 func main() {
-	// 1. Initialize our Swaggor Engine
-	engine := swaggor.NewEngine("Fiber High-Performance API", "v4.0.0")
-
-	// 2. Register the endpoint metadata dynamically
-	engine.AddRoute(
-		"/api/v4/customers",
-		http.MethodGet,
-		"Fetch Customer Information",
-		"Retrieves sanitized domain customer entities using the Fiber runtime.",
-		CustomerResponse{},
+	engine := swaggor.NewEngine("Fiber High-Performance API", "v4.0.0",
+		swaggor.WithDescription("Customer management API powered by Fiber and fasthttp."),
+		swaggor.WithContact("Fiber API Team", "api@example.com", "https://example.com"),
+		swaggor.WithLicense("MIT", "https://opensource.org/licenses/MIT"),
+		swaggor.WithServer("http://localhost:3000", "Local Development"),
+		swaggor.WithSecurityScheme("bearer", swaggor.BearerJWT()),
+		swaggor.WithSecurityScheme("apiKey", swaggor.APIKeyHeader("X-API-Key")),
 	)
 
-	// 3. Initialize the Fiber application instance
-	app := fiber.New(fiber.Config{
-		AppName: "Fiber Swagger Integration",
+	engine.AddRoute("/api/v4/customers", "GET",
+		"List Customers",
+		"Returns paginated customer records.",
+		swaggor.WithTags("Customers"),
+		swaggor.WithQueryParam("page", "Page number (1-based)", false),
+		swaggor.WithQueryParam("limit", "Results per page (max 100)", false),
+		swaggor.WithQueryParam("status", "Filter by account status", false),
+		swaggor.WithResponse(200, "Successful", []CustomerResponse{}),
+		swaggor.WithResponse(401, "Unauthorized", ErrorResponse{}),
+		swaggor.WithSecurity("bearer"),
+	)
+
+	engine.AddRoute("/api/v4/customers/{uuid}", "GET",
+		"Get Customer",
+		"Returns a single customer by UUID.",
+		swaggor.WithTags("Customers"),
+		swaggor.WithPathParam("uuid", "Customer UUID"),
+		swaggor.WithResponse(200, "Successful", CustomerResponse{}),
+		swaggor.WithResponse(404, "Customer not found", ErrorResponse{}),
+		swaggor.WithResponse(401, "Unauthorized", ErrorResponse{}),
+		swaggor.WithSecurity("bearer"),
+	)
+
+	engine.AddRoute("/api/v4/customers", "POST",
+		"Create Customer",
+		"Registers a new customer account.",
+		swaggor.WithTags("Customers"),
+		swaggor.WithRequestBody("New customer data", true, CreateCustomerRequest{}),
+		swaggor.WithResponse(201, "Customer created", CustomerResponse{}),
+		swaggor.WithResponse(400, "Validation error", ErrorResponse{}),
+		swaggor.WithResponse(401, "Unauthorized", ErrorResponse{}),
+		swaggor.WithSecurity("bearer"),
+	)
+
+	engine.AddRoute("/api/v4/customers/{uuid}", "PUT",
+		"Replace Customer",
+		"Full replacement of a customer record.",
+		swaggor.WithTags("Customers"),
+		swaggor.WithPathParam("uuid", "Customer UUID"),
+		swaggor.WithRequestBody("Replacement data", true, CreateCustomerRequest{}),
+		swaggor.WithResponse(200, "Customer updated", CustomerResponse{}),
+		swaggor.WithResponse(404, "Customer not found", ErrorResponse{}),
+		swaggor.WithSecurity("bearer"),
+	)
+
+	engine.AddRoute("/api/v4/customers/{uuid}", "PATCH",
+		"Update Customer",
+		"Partial update of a customer record.",
+		swaggor.WithTags("Customers"),
+		swaggor.WithPathParam("uuid", "Customer UUID"),
+		swaggor.WithRequestBody("Partial data", false, CreateCustomerRequest{}),
+		swaggor.WithResponse(200, "Customer updated", CustomerResponse{}),
+		swaggor.WithResponse(404, "Customer not found", ErrorResponse{}),
+		swaggor.WithSecurity("bearer"),
+	)
+
+	engine.AddRoute("/api/v4/customers/{uuid}", "DELETE",
+		"Delete Customer",
+		"Permanently removes a customer account.",
+		swaggor.WithTags("Customers"),
+		swaggor.WithPathParam("uuid", "Customer UUID"),
+		swaggor.WithResponse(204, "Deleted successfully", nil),
+		swaggor.WithResponse(404, "Customer not found", ErrorResponse{}),
+		swaggor.WithSecurity("bearer"),
+	)
+
+	app := fiber.New(fiber.Config{AppName: "Fiber Swagger Integration"})
+
+	app.Get("/api/v4/customers", func(c *fiber.Ctx) error {
+		return c.JSON([]CustomerResponse{
+			{
+				UUID:     "7a9b2c1d-8f3e-4d5b-9a1c-3b2d1e4f5a6b",
+				Username: "wendel.santos.fiber",
+				TierID:   99,
+				Status:   "active",
+				Settings: AccountSettings{TwoFactorEnabled: true, PreferredLang: "en-US"},
+			},
+		})
 	})
 
-	// 4. Implement the business logic route using native Fiber context (*fiber.Ctx)
-	app.Get("/api/v4/customers", func(c *fiber.Ctx) error {
-		response := CustomerResponse{
-			UUID:     "7a9b2c1d-8f3e-4d5b-9a1c-3b2d1e4f5a6b",
+	app.Get("/api/v4/customers/:uuid", func(c *fiber.Ctx) error {
+		return c.JSON(CustomerResponse{
+			UUID:     c.Params("uuid"),
 			Username: "wendel.santos.fiber",
 			TierID:   99,
-			Settings: AccountSettings{
-				TwoFactorEnabled: true,
-				PreferredLang:    "en-US",
-			},
-		}
-
-		// Fiber has built-in JSON marshaling
-		return c.JSON(response)
+			Status:   "active",
+			Settings: AccountSettings{TwoFactorEnabled: true, PreferredLang: "en-US"},
+		})
 	})
 
-	// 5. The Magic: Adapt the net/http Handler into a Fiber Handler
-	// We use app.All and a wildcard route "/swaggor/*" so the internal router
-	// of our library can handle both "/" (HTML) and "/doc.json" (JSON).
+	app.Post("/api/v4/customers", func(c *fiber.Ctx) error {
+		c.Status(http.StatusCreated)
+		return c.JSON(CustomerResponse{
+			UUID:     "new-uuid-here",
+			Username: "new.user",
+			TierID:   1,
+			Status:   "active",
+		})
+	})
+
+	app.Delete("/api/v4/customers/:uuid", func(c *fiber.Ctx) error {
+		return c.SendStatus(http.StatusNoContent)
+	})
+
+	// Adapt the net/http handler into Fiber using the wildcard route.
 	app.All("/swaggor/*", adaptor.HTTPHandler(engine.Handler()))
 
-	log.Println("[INFO] Fiber Application active at: http://localhost:3000/api/v4/customers")
-	log.Println("[INFO] Swagger UI Documentation at: http://localhost:3000/swaggor/")
+	log.Println("[INFO] API:        http://localhost:3000/api/v4/customers")
+	log.Println("[INFO] Swagger UI: http://localhost:3000/swaggor/")
+	log.Println("[INFO] Spec JSON:  http://localhost:3000/swaggor/doc.json")
 
-	// 6. Start the fasthttp server
 	if err := app.Listen(":3000"); err != nil {
-		log.Fatalf("[CRITICAL] Fiber infrastructure failure: %v", err)
+		log.Fatalf("[CRITICAL] Fiber server failed: %v", err)
 	}
 }
