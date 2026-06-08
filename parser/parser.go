@@ -41,6 +41,17 @@ import (
 	"strings"
 )
 
+// ValidationError describes a malformed annotation found during parsing.
+type ValidationError struct {
+	FuncName string
+	Tag      string
+	Message  string
+}
+
+func (e ValidationError) Error() string {
+	return fmt.Sprintf("swaggor/parser: func %q → %s: %s", e.FuncName, e.Tag, e.Message)
+}
+
 // Param describes a single HTTP parameter (query or path).
 type Param struct {
 	Name        string
@@ -84,44 +95,66 @@ type RouteAnnotation struct {
 }
 
 // ParseDir walks every .go file inside dir and returns all annotated functions found.
+// Validation warnings are silently discarded; use ParseDirStrict to inspect them.
 func ParseDir(dir string) ([]RouteAnnotation, error) {
+	routes, _, err := ParseDirStrict(dir)
+	return routes, err
+}
+
+// ParseDirStrict walks every .go file inside dir and returns annotated functions
+// plus any ValidationErrors found in malformed annotations.
+func ParseDirStrict(dir string) ([]RouteAnnotation, []ValidationError, error) {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("parser.ParseDir(%q): %w", dir, err)
+		return nil, nil, fmt.Errorf("parser.ParseDir(%q): %w", dir, err)
 	}
 
 	var routes []RouteAnnotation
+	var errs []ValidationError
 	for _, pkg := range pkgs {
 		for _, file := range pkg.Files {
-			routes = append(routes, extractFromFile(file)...)
+			anns, fileErrs := extractFromFileStrict(file)
+			routes = append(routes, anns...)
+			errs = append(errs, fileErrs...)
 		}
 	}
-	return routes, nil
+	return routes, errs, nil
 }
 
-// extractFromFile pulls annotations from every top-level function declaration.
-func extractFromFile(f *ast.File) []RouteAnnotation {
+// extractFromFileStrict pulls annotations from every top-level function declaration.
+func extractFromFileStrict(f *ast.File) ([]RouteAnnotation, []ValidationError) {
 	var out []RouteAnnotation
+	var errs []ValidationError
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Doc == nil {
 			continue
 		}
-		ann, found := parseDocComment(fn.Doc.Text())
+		ann, found, fnErrs := parseDocComment(fn.Doc.Text())
 		if !found {
 			continue
 		}
 		ann.FuncName = fn.Name.Name
+		for i := range fnErrs {
+			fnErrs[i].FuncName = fn.Name.Name
+		}
 		out = append(out, ann)
+		errs = append(errs, fnErrs...)
 	}
-	return out
+	return out, errs
+}
+
+var validHTTPMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true,
+	"DELETE": true, "HEAD": true, "OPTIONS": true,
 }
 
 // parseDocComment parses the raw comment text of a function.
-// Returns (annotation, true) when at least one @Route tag is present.
-func parseDocComment(doc string) (RouteAnnotation, bool) {
+// Returns (annotation, true, warnings) when at least one @Route tag is present.
+func parseDocComment(doc string) (RouteAnnotation, bool, []ValidationError) {
 	var ann RouteAnnotation
+	var errs []ValidationError
 	hasRoute := false
 
 	for _, raw := range strings.Split(doc, "\n") {
@@ -136,11 +169,17 @@ func parseDocComment(doc string) (RouteAnnotation, bool) {
 		switch tag {
 		case "@Route":
 			parts := strings.SplitN(rest, " ", 2)
-			if len(parts) == 2 {
-				ann.Method = strings.ToUpper(parts[0])
-				ann.Path = strings.TrimSpace(parts[1])
-				hasRoute = true
+			if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+				errs = append(errs, ValidationError{Tag: "@Route", Message: fmt.Sprintf("malformed %q — expected: METHOD /path", rest)})
+				continue
 			}
+			method := strings.ToUpper(strings.TrimSpace(parts[0]))
+			if !validHTTPMethods[method] {
+				errs = append(errs, ValidationError{Tag: "@Route", Message: fmt.Sprintf("unknown HTTP method %q", method)})
+			}
+			ann.Method = method
+			ann.Path = strings.TrimSpace(parts[1])
+			hasRoute = true
 
 		case "@Summary":
 			ann.Summary = rest
@@ -158,12 +197,16 @@ func parseDocComment(doc string) (RouteAnnotation, bool) {
 		case "@Query":
 			if p, ok := parseParam(rest); ok {
 				ann.QueryParams = append(ann.QueryParams, p)
+			} else {
+				errs = append(errs, ValidationError{Tag: "@Query", Message: fmt.Sprintf("malformed param %q — expected: name \"description\" required|optional", rest)})
 			}
 
 		case "@Path":
 			if p, ok := parseParam(rest); ok {
 				p.Required = true // path params are always required
 				ann.PathParams = append(ann.PathParams, p)
+			} else {
+				errs = append(errs, ValidationError{Tag: "@Path", Message: fmt.Sprintf("malformed param %q — expected: name \"description\"", rest)})
 			}
 
 		case "@Body":
@@ -172,6 +215,8 @@ func parseDocComment(doc string) (RouteAnnotation, bool) {
 		case "@Response":
 			if r, ok := parseResponse(rest); ok {
 				ann.Responses = append(ann.Responses, r)
+			} else {
+				errs = append(errs, ValidationError{Tag: "@Response", Message: fmt.Sprintf("malformed %q — expected: code TypeName \"description\"", rest)})
 			}
 
 		case "@Auth":
@@ -190,7 +235,7 @@ func parseDocComment(doc string) (RouteAnnotation, bool) {
 	if ann.Framework == "" {
 		ann.Framework = "nethttp"
 	}
-	return ann, hasRoute
+	return ann, hasRoute, errs
 }
 
 // parseParam parses:  name  "description"  required|optional
