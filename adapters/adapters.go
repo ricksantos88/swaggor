@@ -23,6 +23,8 @@
 package adapters
 
 import (
+	"fmt"
+
 	"github.com/ricksantos88/swaggor"
 	"github.com/ricksantos88/swaggor/parser"
 )
@@ -36,8 +38,17 @@ type BodyResolver func(typeName string) any
 // framework-native handler value taken from the registry.
 type RegisterFunc[H any] func(method, path string, handler H)
 
-// Load registers every route whose @For tag matches the provided registry keys
-// with both the swaggor documentation engine and the target HTTP router.
+// LoadResult holds the outcome of a single route registration attempt.
+// Err is non-nil when the handler function name from the annotation was not
+// found in the registry — meaning the route is documented but not wired.
+type LoadResult struct {
+	Route parser.RouteAnnotation
+	Err   error
+}
+
+// Load registers every annotated route with the documentation engine and the
+// HTTP router. For each route whose handler is missing from the registry,
+// a LoadResult with a non-nil Err is returned instead of silently skipping it.
 //
 //   - registry maps Go function names to framework-native handler values.
 //   - resolver translates @Response type names to zero-value instances for schema inference.
@@ -48,12 +59,37 @@ func Load[H any](
 	registry map[string]H,
 	resolver BodyResolver,
 	register RegisterFunc[H],
-) {
+) []LoadResult {
+	results := make([]LoadResult, 0, len(routes))
 	for _, r := range routes {
 		engine.AddRoute(r.Path, r.Method, r.Summary, r.Description, buildOpts(r, resolver)...)
 
-		if h, ok := registry[r.FuncName]; ok {
-			register(r.Method, r.Path, h)
+		h, ok := registry[r.FuncName]
+		if !ok {
+			results = append(results, LoadResult{
+				Route: r,
+				Err:   fmt.Errorf("swaggor: handler %q annotated at %s %s not found in registry", r.FuncName, r.Method, r.Path),
+			})
+			continue
+		}
+		register(r.Method, r.Path, h)
+		results = append(results, LoadResult{Route: r})
+	}
+	return results
+}
+
+// MustLoad is identical to Load but panics on the first registry mismatch.
+// Use in main() to fail fast during startup rather than serving undocumented gaps.
+func MustLoad[H any](
+	engine *swaggor.Engine,
+	routes []parser.RouteAnnotation,
+	registry map[string]H,
+	resolver BodyResolver,
+	register RegisterFunc[H],
+) {
+	for _, res := range Load(engine, routes, registry, resolver, register) {
+		if res.Err != nil {
+			panic(res.Err)
 		}
 	}
 }

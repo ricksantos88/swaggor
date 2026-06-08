@@ -16,6 +16,23 @@ type SimpleStruct struct {
 	Name string `json:"name" description:"Display name"`
 }
 
+type RequiredByValidate struct {
+	Email string `json:"email" validate:"required"`
+	Name  string `json:"name"  validate:"required,min=2"`
+	Bio   string `json:"bio"`
+}
+
+type RequiredByBinding struct {
+	Token  string `json:"token"  binding:"required"`
+	UserID int    `json:"user_id" binding:"required"`
+	Note   string `json:"note"`
+}
+
+type RequiredByTag struct {
+	Code string `json:"code" required:"true"`
+	Desc string `json:"desc"`
+}
+
 type NestedParent struct {
 	Child SimpleStruct `json:"child"`
 	Label string       `json:"label"`
@@ -676,6 +693,76 @@ func TestHandler_UnknownPath_NotFound(t *testing.T) {
 	e.Handler().ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("want 404, got %d", rr.Code)
+	}
+}
+
+func TestRegisterModel_RequiredViaValidateTag(t *testing.T) {
+	e := NewEngine("Test", "v1")
+	e.RegisterModel(RequiredByValidate{})
+	schema := e.spec.Components.Schemas["RequiredByValidate"]
+
+	required := make(map[string]bool)
+	for _, f := range schema.Required {
+		required[f] = true
+	}
+	if !required["email"] {
+		t.Error("email (validate:required) should be in required list")
+	}
+	if !required["name"] {
+		t.Error("name (validate:required,min=2) should be in required list")
+	}
+	if required["bio"] {
+		t.Error("bio (no required tag) should NOT be in required list")
+	}
+}
+
+func TestRegisterModel_RequiredViaBindingTag(t *testing.T) {
+	e := NewEngine("Test", "v1")
+	e.RegisterModel(RequiredByBinding{})
+	schema := e.spec.Components.Schemas["RequiredByBinding"]
+
+	required := make(map[string]bool)
+	for _, f := range schema.Required {
+		required[f] = true
+	}
+	if !required["token"] {
+		t.Error("token (binding:required) should be in required list")
+	}
+	if !required["user_id"] {
+		t.Error("user_id (binding:required) should be in required list")
+	}
+	if required["note"] {
+		t.Error("note should NOT be in required list")
+	}
+}
+
+func TestRegisterModel_RequiredViaRequiredTag(t *testing.T) {
+	e := NewEngine("Test", "v1")
+	e.RegisterModel(RequiredByTag{})
+	schema := e.spec.Components.Schemas["RequiredByTag"]
+
+	required := make(map[string]bool)
+	for _, f := range schema.Required {
+		required[f] = true
+	}
+	if !required["code"] {
+		t.Error("code (required:true) should be in required list")
+	}
+	if required["desc"] {
+		t.Error("desc should NOT be in required list")
+	}
+}
+
+func TestRegisterModel_RequiredOmittedFromJSONWhenEmpty(t *testing.T) {
+	e := NewEngine("Test", "v1")
+	e.RegisterModel(SimpleStruct{})
+
+	data, err := json.Marshal(e.spec.Components.Schemas["SimpleStruct"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"required"`) {
+		t.Error("schema without required fields should not emit required key in JSON")
 	}
 }
 
